@@ -11,12 +11,22 @@ uploaded_file = st.file_uploader("📂 CSVファイルをアップロード", ty
 
 if uploaded_file is not None:
     try:
+        # アップロードされたファイルをメモリにバイナリとして読み込む
+        data = uploaded_file.getvalue() 
         try:
-            # 1. Mac/Web標準のUTF-8で読み込みを試行
-            df = pd.read_csv(uploaded_file, encoding="utf-8")
+            # 1. UTF-8で読み込みを試行
+            stringio = io.TextIOWrapper(io.BytesIO(data), encoding='utf-8')
+            df = pd.read_csv(stringio)
+            st.info("エンコーディング: UTF-8 で読み込みました。")
         except UnicodeDecodeError:
-            # 2. 失敗した場合、Windows標準のShift-JISで読み込みを試行
-            df = pd.read_csv(uploaded_file, encoding="shift_jis")
+            # 2. UTF-8で失敗した場合、Shift-JISで読み込みを試行
+            stringio = io.TextIOWrapper(io.BytesIO(data), encoding='shift_jis')
+            df = pd.read_csv(stringio)
+            st.info("エンコーディング: Shift-JIS で読み込みました。")
+        except Exception as e:
+            # どちらでも読み込めなかった場合の最終エラー
+            st.error(f"❌ ファイルの読み込みに失敗しました。文字コードを確認してください: {e}")
+            return # エラーで処理を終了
 
         if '発注先名' in df.columns and '振込額' in df.columns:
             df_summary = (
@@ -45,6 +55,7 @@ if uploaded_file is not None:
             st.error("⚠️ '発注先名' または '振込額' の列がCSVに含まれていません。")
     except Exception as e:
         st.error(f"❌ エラーが発生しました: {e}")
+
 
 
 
