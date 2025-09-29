@@ -12,9 +12,11 @@ uploaded_file = st.file_uploader("📂 CSVファイルをアップロード", ty
 if uploaded_file is not None:
     try:
         try:
-            df = pd.read_csv(uploaded_file, encoding="shift_jis")
-        except UnicodeDecodeError:
+            # 1. Mac/Web標準のUTF-8で読み込みを試行
             df = pd.read_csv(uploaded_file, encoding="utf-8")
+        except UnicodeDecodeError:
+            # 2. 失敗した場合、Windows標準のShift-JISで読み込みを試行
+            df = pd.read_csv(uploaded_file, encoding="shift_jis")
 
         if '発注先名' in df.columns and '振込額' in df.columns:
             df_summary = (
@@ -43,6 +45,7 @@ if uploaded_file is not None:
             st.error("⚠️ '発注先名' または '振込額' の列がCSVに含まれていません。")
     except Exception as e:
         st.error(f"❌ エラーが発生しました: {e}")
+
 
 
 
