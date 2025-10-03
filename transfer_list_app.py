@@ -10,36 +10,40 @@ st.markdown("---")
 uploaded_file = st.file_uploader("📂 CSVファイルをアップロード", type="csv")
 
 if uploaded_file is not None:
-    try:
-        df = None
-        
-        # --- ファイル読み込みの改善 ---
-        # 1. まず Shift-JIS (日本の一般的なCSV) とカンマ区切りで試行
+    # 読み込み試行のための設定リスト: (エンコーディング, 区切り文字, 説明)
+    # CP932を追加し、最も安全性の高い組み合わせを優先する
+    read_attempts = [
+        ("cp932", ",", "CP932 (カンマ区切り)"),
+        ("shift_jis", ",", "Shift-JIS (カンマ区切り)"),
+        ("utf-8", ",", "UTF-8 (カンマ区切り)"),
+        ("cp932", "\t", "CP932 (タブ区切り)"),
+        ("shift_jis", "\t", "Shift-JIS (タブ区切り)"),
+    ]
+    
+    df = None
+    read_success = False
+    
+    # ファイル読み込みの改善: 設定リストを順番に試す
+    for encoding, sep, desc in read_attempts:
         try:
-            df = pd.read_csv(uploaded_file, encoding="shift_jis")
-            st.info("ファイルは Shift-JIS (カンマ区切り) として読み込まれました。")
-        except:
-            # 2. 失敗した場合、UTF-8 (一般的なWeb標準) とカンマ区切りで試行
-            try:
-                uploaded_file.seek(0) # ファイルポインタを先頭に戻す
-                df = pd.read_csv(uploaded_file, encoding="utf-8")
-                st.info("ファイルは UTF-8 (カンマ区切り) として読み込まれました。")
-            except:
-                # 3. 再度ファイルポインタを先頭に戻し、今度はShift-JISとタブ区切りで試行
-                try:
-                    uploaded_file.seek(0)
-                    df = pd.read_csv(uploaded_file, encoding="shift_jis", sep='\t')
-                    st.info("ファイルは Shift-JIS (タブ区切り) として読み込まれました。")
-                except:
-                    uploaded_file.seek(0)
-                    df = pd.read_csv(uploaded_file, encoding="utf-8", sep='\t')
-                    st.info("ファイルは UTF-8 (タブ区切り) として読み込まれました。")
-        
-        if df is None or df.empty:
-             st.error("⚠️ CSVファイルからデータを読み込めませんでした。ファイルが空であるか、エンコーディング・区切り文字が特殊かもしれません。")
-             # return を st.stop() に変更してエラーを回避
-             st.stop()
+            # 毎回ファイルの先頭に戻す
+            uploaded_file.seek(0)
+            df = pd.read_csv(uploaded_file, encoding=encoding, sep=sep)
+            
+            # 列が読み込めていれば成功とする (No columns to parse from file対策)
+            if not df.empty and len(df.columns) > 1:
+                st.info(f"✅ ファイルは {desc} として正常に読み込まれました。")
+                read_success = True
+                break
+        except Exception:
+            # 読み込みエラーが発生した場合は次の組み合わせを試す
+            continue
+            
+    if not read_success:
+         st.error("⚠️ CSVファイルからデータを読み込めませんでした。ファイルが空であるか、エンコーディング・区切り文字が特殊かもしれません。")
+         st.stop() # 正常に処理を中断
 
+    try:
         # 必須列のチェック
         required_cols = ['発注先名', '振込額']
         
@@ -48,6 +52,9 @@ if uploaded_file is not None:
 
         if not missing_cols:
             # 必須列のみを選択し、発注先名でグループ化して振込額を合計
+            # NOTE: .sum() の前に .astype(float) を実行して数値型に統一することを推奨
+            # df['振込額'] = pd.to_numeric(df['振込額'], errors='coerce') 
+            
             df_summary = (
                 df[required_cols]
                 .groupby('発注先名', as_index=False)
@@ -88,5 +95,6 @@ if uploaded_file is not None:
 
     except Exception as e:
         # その他、予期せぬエラーの表示
-        st.error("❌ ファイル処理中に予期せぬエラーが発生しました。")
+        st.error("❌ データ集計処理中に予期せぬエラーが発生しました。")
         st.code(f"エラー詳細: {e}")
+
