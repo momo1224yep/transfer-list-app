@@ -37,7 +37,8 @@ if uploaded_file is not None:
         
         if df is None or df.empty:
              st.error("⚠️ CSVファイルからデータを読み込めませんでした。ファイルが空であるか、エンコーディング・区切り文字が特殊かもしれません。")
-             return
+             # return を st.stop() に変更してエラーを回避
+             st.stop()
 
         # 必須列のチェック
         required_cols = ['発注先名', '振込額']
